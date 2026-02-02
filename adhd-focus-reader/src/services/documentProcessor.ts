@@ -6,7 +6,6 @@
  */
 
 import mammoth from 'mammoth'
-import { PDFParse } from 'pdf-parse'
 import type {
   DocumentProcessor,
   ProcessedDocument,
@@ -19,6 +18,41 @@ import type {
 import type { AppError, ProgressiveLoadingState } from '../types/errors'
 import { errorHandler } from './errorHandler'
 import { ErrorType, ErrorSeverity, createAppError } from '../types/errors'
+
+// PDF.js will be loaded dynamically when needed
+let pdfjsLib: any = null
+
+// Configure PDF.js worker when in browser environment
+async function configurePDFJS() {
+  if (typeof window === 'undefined') {
+    return null // Not in browser environment
+  }
+
+  if (pdfjsLib) {
+    return pdfjsLib // Already loaded
+  }
+
+  try {
+    pdfjsLib = await import('pdfjs-dist')
+    
+    // Set the worker source for PDF.js
+    try {
+      // Try to use the worker from node_modules first
+      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+        'pdfjs-dist/build/pdf.worker.min.mjs',
+        import.meta.url
+      ).toString()
+    } catch {
+      // Fallback to CDN if local worker fails
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs'
+    }
+    
+    return pdfjsLib
+  } catch (error) {
+    console.error('Failed to load PDF.js:', error)
+    return null
+  }
+}
 
 export class DocumentProcessorService implements DocumentProcessor {
   private readonly MAX_CHUNK_SIZE = 1024 * 1024 // 1MB chunks for progressive loading
@@ -349,16 +383,65 @@ export class DocumentProcessorService implements DocumentProcessor {
   }
 
   private async parsePDF(file: File): Promise<string> {
+    // Load PDF.js dynamically
+    const pdfjsLib = await configurePDFJS()
+    
+    if (!pdfjsLib) {
+      throw createAppError(
+        ErrorType.CORRUPTED_DOCUMENT,
+        'PDF parsing is not available in this environment',
+        ErrorSeverity.HIGH,
+        {
+          userMessage: 'PDF parsing is not supported in this environment. Please try pasting the text instead.',
+          recoverable: false
+        }
+      )
+    }
+
     try {
       const arrayBuffer = await file.arrayBuffer()
-      const pdfParse = new PDFParse({
-        data: new Uint8Array(arrayBuffer)
+      
+      // Load the PDF document
+      const loadingTask = pdfjsLib.getDocument({
+        data: arrayBuffer,
+        useSystemFonts: true,
+        disableFontFace: false,
+        verbosity: 0 // Reduce console output
       })
       
-      const result = await pdfParse.getText()
-      await pdfParse.destroy()
+      const pdf = await loadingTask.promise
+      let fullText = ''
       
-      if (!result.text || result.text.trim().length === 0) {
+      // Extract text from each page
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        try {
+          const page = await pdf.getPage(pageNum)
+          const textContent = await page.getTextContent()
+          
+          // Combine text items with proper spacing
+          const pageText = textContent.items
+            .map((item: any) => {
+              if ('str' in item) {
+                return item.str
+              }
+              return ''
+            })
+            .join(' ')
+          
+          fullText += pageText + '\n\n'
+          
+          // Clean up page resources
+          page.cleanup()
+        } catch (pageError) {
+          console.warn(`Error processing page ${pageNum}:`, pageError)
+          // Continue with other pages
+        }
+      }
+      
+      // Clean up PDF resources
+      await pdf.destroy()
+      
+      if (!fullText || fullText.trim().length === 0) {
         throw createAppError(
           ErrorType.EMPTY_DOCUMENT,
           'PDF contains no readable text',
@@ -370,15 +453,8 @@ export class DocumentProcessorService implements DocumentProcessor {
         )
       }
       
-      return result.text
+      return fullText.trim()
     } catch (error) {
-      // Ensure PDF parser is cleaned up
-      try {
-        // If pdfParse was created, try to destroy it
-      } catch {
-        // Ignore cleanup errors
-      }
-
       if (error && typeof error === 'object' && 'type' in error) {
         throw error // Re-throw AppErrors
       }

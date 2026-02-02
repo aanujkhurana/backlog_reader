@@ -409,7 +409,7 @@ export class ErrorHandlerService {
     }
 
     // Console logging for development
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env?.DEV) {
       console.error('App Error:', {
         type: error.type,
         severity: error.severity,

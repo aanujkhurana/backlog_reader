@@ -120,7 +120,7 @@ export function createAppError(
   error.timestamp = new Date()
   
   if (options.cause) {
-    error.cause = options.cause
+    (error as any).cause = options.cause
   }
   
   return error

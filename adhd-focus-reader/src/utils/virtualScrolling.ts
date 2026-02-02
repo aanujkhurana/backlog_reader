@@ -100,7 +100,7 @@ export class ChunkedProcessor<T> {
       // Process chunk
       for (let j = 0; j < chunk.length; j++) {
         const globalIndex = i + j
-        results.push(processor(chunk[j], globalIndex))
+        results.push(processor(chunk[j]!, globalIndex))
       }
 
       // Report progress

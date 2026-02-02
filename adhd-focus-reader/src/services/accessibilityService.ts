@@ -68,20 +68,30 @@ export class AccessibilityService {
    * Detect user accessibility preferences
    */
   private detectUserPreferences(): void {
-    // Detect high contrast preference
-    if (window.matchMedia('(prefers-contrast: high)').matches) {
-      this.config.highContrast = true
+    // Check if matchMedia is available (not available in some test environments)
+    if (typeof window === 'undefined' || !window.matchMedia) {
+      return
     }
 
-    // Detect reduced motion preference
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      this.config.reducedMotion = true
-    }
+    try {
+      // Detect high contrast preference
+      if (window.matchMedia('(prefers-contrast: high)').matches) {
+        this.config.highContrast = true
+      }
 
-    // Listen for changes
-    window.matchMedia('(prefers-contrast: high)').addEventListener('change', (e) => {
-      this.config.highContrast = e.matches
-    })
+      // Detect reduced motion preference
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        this.config.reducedMotion = true
+      }
+
+      // Listen for changes
+      window.matchMedia('(prefers-contrast: high)').addEventListener('change', (e) => {
+        this.config.highContrast = e.matches
+      })
+    } catch (error) {
+      // Gracefully handle matchMedia errors in test environments
+      console.warn('matchMedia not available:', error)
+    }
 
     window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', (e) => {
       this.config.reducedMotion = e.matches
@@ -411,12 +421,40 @@ export class AccessibilityService {
   private hexToRgb(hex: string): { r: number; g: number; b: number } | null {
     const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
     return result ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16)
+      r: parseInt(result[1]!, 16),
+      g: parseInt(result[2]!, 16),
+      b: parseInt(result[3]!, 16)
     } : null
   }
 }
 
-// Export singleton instance
-export const accessibilityService = new AccessibilityService()
+// Export singleton instance (lazy initialization)
+let _accessibilityService: AccessibilityService | null = null
+
+export const accessibilityService = {
+  getInstance(): AccessibilityService {
+    if (!_accessibilityService) {
+      _accessibilityService = new AccessibilityService()
+    }
+    return _accessibilityService
+  },
+  
+  // Delegate methods for convenience
+  announceStateChange: (state: any, details?: any) => accessibilityService.getInstance().announceStateChange(state, details),
+  announceProgress: (current: number, total: number) => accessibilityService.getInstance().announceProgress(current, total),
+  setupKeyboardNavigation: (callbacks: any) => accessibilityService.getInstance().setupKeyboardNavigation(callbacks),
+  removeKeyboardNavigation: () => accessibilityService.getInstance().removeKeyboardNavigation(),
+  calculateContrastRatio: (fg: string, bg: string) => accessibilityService.getInstance().calculateContrastRatio(fg, bg),
+  validateColorScheme: (colors: any) => accessibilityService.getInstance().validateColorScheme(colors),
+  getAccessibleColorScheme: () => accessibilityService.getInstance().getAccessibleColorScheme(),
+  manageFocus: (element: HTMLElement, options?: any) => accessibilityService.getInstance().manageFocus(element, options),
+  createAccessibleButton: (text: string, onClick: () => void, options?: any) => accessibilityService.getInstance().createAccessibleButton(text, onClick, options),
+  updateConfig: (config: any) => accessibilityService.getInstance().updateConfig(config),
+  getConfig: () => accessibilityService.getInstance().getConfig(),
+  destroy: () => {
+    if (_accessibilityService) {
+      _accessibilityService.destroy()
+      _accessibilityService = null
+    }
+  }
+}
