@@ -99,25 +99,44 @@ describe('RSVPEngineService', () => {
     })
 
     it('should calculate ORP correctly for different word lengths', () => {
-      const shortDoc: ProcessedDocument = {
+      const testDoc: ProcessedDocument = {
         ...mockDocument,
-        content: 'cat elephant extraordinary'
+        content: 'I am the word hello elephant extraordinary'
       }
 
       const orpValues: number[] = []
+      const words: string[] = []
       engine.setCallbacks({
         onWordDisplay: (display: WordDisplay) => {
           orpValues.push(display.orp)
+          words.push(display.word)
         }
       })
 
-      engine.startReading(shortDoc)
+      engine.startReading(testDoc)
       engine.startAutoReading() // Start the automatic reading
       
-      vi.advanceTimersByTime(3000) // Let it process a few words
+      vi.advanceTimersByTime(8000) // Let it process all words
       
       // Should have calculated ORPs for different word lengths
       expect(orpValues.length).toBeGreaterThan(0)
+      
+      // Test specific ORP values for different word lengths
+      const wordOrpPairs = words.map((word, index) => ({ word, orp: orpValues[index] }))
+      
+      // Find specific test cases
+      const oneLetterWord = wordOrpPairs.find(pair => pair.word === 'I')
+      const threeLetterWord = wordOrpPairs.find(pair => pair.word === 'the')
+      const fourLetterWord = wordOrpPairs.find(pair => pair.word === 'word')
+      const fiveLetterWord = wordOrpPairs.find(pair => pair.word === 'hello')
+      const eightLetterWord = wordOrpPairs.find(pair => pair.word === 'elephant')
+      
+      // Verify ORP calculations
+      if (oneLetterWord) expect(oneLetterWord.orp).toBe(0) // 1-letter: first char
+      if (threeLetterWord) expect(threeLetterWord.orp).toBe(1) // 3-letter: middle char (t[h]e)
+      if (fourLetterWord) expect(fourLetterWord.orp).toBe(1) // 4-letter: second char (w[o]rd)
+      if (fiveLetterWord) expect(fiveLetterWord.orp).toBe(2) // 5-letter: third char (he[l]lo)
+      if (eightLetterWord) expect(eightLetterWord.orp).toBe(2) // 8-letter: third char (el[e]phant)
     })
   })
 

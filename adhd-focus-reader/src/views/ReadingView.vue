@@ -299,6 +299,8 @@ const startReading = async () => {
     const summariesEnabled = route.query.summariesEnabled === 'true'
     const resumeFromSummary = route.query.resumeFromSummary === 'true'
     const resumePosition = parseInt(route.query.position as string) || 0
+    const customStart = route.query.customStart === 'true'
+    const customStartPosition = parseInt(route.query.startPosition as string) || 0
 
     // Update current speed from setup configuration
     currentSpeed.value = baseSpeed
@@ -321,8 +323,20 @@ const startReading = async () => {
       }
     }
 
-    // Get last reading position if available
-    const lastPosition = resumeFromSummary ? resumePosition : (progressManager.getLastPosition(documentId) || 0)
+    // Determine starting position
+    let startPosition = 0
+    if (customStart && customStartPosition >= 0) {
+      // Use custom starting position from preview selection
+      startPosition = customStartPosition
+      // Save this as the new position for this document
+      progressManager.savePosition(documentId, startPosition)
+    } else if (resumeFromSummary) {
+      // Resume from summary screen
+      startPosition = resumePosition
+    } else {
+      // Get last reading position if available
+      startPosition = progressManager.getLastPosition(documentId) || 0
+    }
 
     // Setup callbacks before starting
     setupReadingCallbacks()
@@ -347,7 +361,7 @@ const startReading = async () => {
     setupReadingCallbacks()
 
     // Start the reading session (this will bind keyboard controls automatically)
-    readingSession.value.startSession(processedDocument, lastPosition)
+    readingSession.value.startSession(processedDocument, startPosition)
     
     // Update display state
     displayState.value.isVisible = true
@@ -432,7 +446,8 @@ onMounted(() => {
   }
   
   const handleHelpRequest = () => {
-    accessibilityService.announceKeyboardShortcuts()
+    // accessibilityService.announceKeyboardShortcuts()
+    console.log('Help requested - keyboard shortcuts available')
   }
   
   window.addEventListener('reading-exit-requested', handleExitRequest)

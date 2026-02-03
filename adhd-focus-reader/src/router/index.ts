@@ -10,6 +10,11 @@ const router = createRouter({
       component: LandingView,
     },
     {
+      path: '/preview/:documentId',
+      name: 'preview',
+      component: () => import('../views/DocumentPreviewView.vue'),
+    },
+    {
       path: '/setup/:documentId',
       name: 'setup',
       component: () => import('../views/SetupView.vue'),

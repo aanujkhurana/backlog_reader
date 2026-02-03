@@ -68,6 +68,9 @@
       <button @click="startReading" class="start-button">
         Start Reading
       </button>
+      <button @click="previewDocument" class="preview-button">
+        Preview Document
+      </button>
       <button @click="skipSetup" class="skip-button">
         Skip Setup
       </button>
@@ -183,7 +186,11 @@ function startReading() {
     query: {
       baseSpeed: config.baseSpeed.toString(),
       autoPacingEnabled: config.autoPacingEnabled.toString(),
-      summariesEnabled: config.summariesEnabled.toString()
+      summariesEnabled: config.summariesEnabled.toString(),
+      ...(route.query.customStart === 'true' && route.query.startPosition ? {
+        customStart: 'true',
+        startPosition: route.query.startPosition
+      } : {})
     }
   })
 }
@@ -209,8 +216,20 @@ function skipSetup() {
     query: {
       baseSpeed: defaultConfig.baseSpeed.toString(),
       autoPacingEnabled: defaultConfig.autoPacingEnabled.toString(),
-      summariesEnabled: defaultConfig.summariesEnabled.toString()
+      summariesEnabled: defaultConfig.summariesEnabled.toString(),
+      ...(route.query.customStart === 'true' && route.query.startPosition ? {
+        customStart: 'true',
+        startPosition: route.query.startPosition
+      } : {})
     }
+  })
+}
+
+function previewDocument() {
+  // Navigate to preview screen
+  router.push({
+    name: 'preview',
+    params: { documentId }
   })
 }
 </script>
@@ -399,6 +418,22 @@ function skipSetup() {
 
 .start-button:hover {
   background: #f0f0f0;
+}
+
+.preview-button {
+  background: transparent;
+  border: 1px solid #fff;
+  color: #fff;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.preview-button:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .skip-button {

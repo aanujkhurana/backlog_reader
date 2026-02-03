@@ -643,16 +643,24 @@ export class RSVPEngineService implements RSVPEngine {
   /**
    * Calculate Optimal Recognition Point for a word
    * Requirement 2.2: Highlight ORP in red color
+   * Fixed to properly center the focus point for all word lengths
    */
   private calculateORP(word: string): number {
     const cleanWord = word.replace(/[^\w]/g, '') // Remove punctuation
     const length = cleanWord.length
 
-    // Standard ORP calculation based on word length
-    if (length <= 5) return 0
-    if (length <= 9) return 1
-    if (length <= 13) return 2
-    return 3
+    if (length === 0) return 0
+    
+    // Improved ORP calculation for better centering
+    if (length === 1) return 0
+    if (length === 2) return 0  // First character for 2-letter words
+    if (length === 3) return 1  // Middle character for 3-letter words (THE -> T[H]E)
+    if (length === 4) return 1  // Second character for 4-letter words (WORD -> W[O]RD)
+    if (length === 5) return 2  // Third character for 5-letter words (HELLO -> HE[L]LO)
+    if (length <= 8) return 2   // Third character for 6-8 letter words
+    if (length <= 12) return 3  // Fourth character for 9-12 letter words
+    if (length <= 16) return 4  // Fifth character for 13-16 letter words
+    return Math.floor(length * 0.3) // For very long words, use 30% position
   }
 
   private calculateBaseDelay(word: string): number {

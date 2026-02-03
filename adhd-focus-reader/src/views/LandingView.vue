@@ -75,7 +75,6 @@
           v-for="doc in recentDocuments" 
           :key="doc.id"
           class="recent-item"
-          @click="resumeDocument(doc)"
         >
           <div class="recent-info">
             <h3 class="recent-doc-title">{{ doc.title }}</h3>
@@ -87,9 +86,20 @@
               <span v-else class="completed">✓ Completed</span>
             </div>
           </div>
-          <div class="recent-action">
-            <span v-if="!doc.isCompleted">Continue</span>
-            <span v-else>Read Again</span>
+          <div class="recent-actions">
+            <button 
+              @click="resumeDocument(doc)" 
+              class="resume-action primary"
+            >
+              <span v-if="!doc.isCompleted">Continue</span>
+              <span v-else>Read Again</span>
+            </button>
+            <button 
+              @click="previewDocument(doc)" 
+              class="preview-action secondary"
+            >
+              Preview
+            </button>
           </div>
         </div>
       </div>
@@ -279,9 +289,9 @@ async function processFile(file: File) {
     progressManager.storeDocument(documentSummary)
     progressManager.storeDocumentStructure(documentStructure)
     
-    // Navigate to setup screen
+    // Navigate to preview screen first
     router.push({ 
-      name: 'setup', 
+      name: 'preview', 
       params: { documentId: documentStructure.id } 
     })
     
@@ -366,9 +376,9 @@ async function processPastedText() {
     progressManager.storeDocument(documentSummary)
     progressManager.storeDocumentStructure(documentStructure)
     
-    // Navigate to setup screen
+    // Navigate to preview screen first
     router.push({ 
-      name: 'setup', 
+      name: 'preview', 
       params: { documentId: documentStructure.id } 
     })
     
@@ -396,6 +406,14 @@ function resumeDocument(doc: DocumentSummary) {
   // Navigate to setup screen for document configuration
   router.push({ 
     name: 'setup', 
+    params: { documentId: doc.id } 
+  })
+}
+
+function previewDocument(doc: DocumentSummary) {
+  // Navigate to preview screen
+  router.push({ 
+    name: 'preview', 
     params: { documentId: doc.id } 
   })
 }
@@ -617,7 +635,6 @@ function resumeDocument(doc: DocumentSummary) {
   border: 1px solid #333;
   border-radius: 8px;
   padding: 1rem;
-  cursor: pointer;
   transition: all 0.2s ease;
   display: flex;
   justify-content: space-between;
@@ -655,10 +672,40 @@ function resumeDocument(doc: DocumentSummary) {
   color: #fbbf24;
 }
 
-.recent-action {
-  color: #ccc;
-  font-size: 0.9rem;
+.recent-actions {
+  display: flex;
+  gap: 0.5rem;
   padding-left: 1rem;
+}
+
+.resume-action,
+.preview-action {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.resume-action.primary {
+  background: #4ade80;
+  color: #000;
+}
+
+.resume-action.primary:hover {
+  background: #22c55e;
+}
+
+.preview-action.secondary {
+  background: transparent;
+  color: #ccc;
+  border: 1px solid #555;
+}
+
+.preview-action.secondary:hover {
+  border-color: #777;
+  color: #fff;
 }
 
 /* Modal */
@@ -903,6 +950,20 @@ function resumeDocument(doc: DocumentSummary) {
   .recent-meta {
     flex-direction: column;
     gap: 0.25rem;
+  }
+  
+  .recent-actions {
+    flex-direction: column;
+    padding-left: 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid #333;
+    margin-top: 0.75rem;
+  }
+  
+  .resume-action,
+  .preview-action {
+    width: 100%;
+    text-align: center;
   }
 }
 </style>
