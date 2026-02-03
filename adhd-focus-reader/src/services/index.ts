@@ -8,6 +8,7 @@ export { KeyboardControllerService, createKeyboardController } from './keyboardC
 export { ReadingSessionService, createReadingSession } from './readingSession'
 export { ProgressManagerService, progressManager } from './progressManager'
 export { ErrorHandlerService, errorHandler } from './errorHandler'
+export { SummaryService, summaryService, createSummaryService } from './summaryService'
 
 export type { 
   DocumentProcessor,
@@ -51,3 +52,9 @@ export type {
   StorageHealthCheck,
   ProgressiveLoadingState
 } from '../types/errors'
+
+export type {
+  SummaryGenerator,
+  SectionSummary,
+  SummaryConfig
+} from '../types/summary'

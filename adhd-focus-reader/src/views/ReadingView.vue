@@ -262,6 +262,26 @@ const setupReadingCallbacks = () => {
         name: 'completion', 
         params: { documentId: route.params.documentId } 
       })
+    },
+    onSectionComplete: (sectionIndex: number, position: number) => {
+      // Check if summaries are enabled
+      const summariesEnabled = route.query.summariesEnabled === 'true'
+      
+      if (summariesEnabled) {
+        // Pause reading and navigate to summary screen
+        readingSession.value.getRSVPEngine().pauseReading()
+        
+        router.push({
+          name: 'summary',
+          params: { documentId: route.params.documentId as string },
+          query: {
+            sectionIndex: sectionIndex.toString(),
+            position: position.toString(),
+            totalWords: displayState.value.totalWords.toString()
+          }
+        })
+      }
+      // If summaries disabled, continue reading without interruption
     }
   })
 }
@@ -277,6 +297,8 @@ const startReading = async () => {
     const baseSpeed = parseInt(route.query.baseSpeed as string) || 250
     const autoPacingEnabled = route.query.autoPacingEnabled === 'true'
     const summariesEnabled = route.query.summariesEnabled === 'true'
+    const resumeFromSummary = route.query.resumeFromSummary === 'true'
+    const resumePosition = parseInt(route.query.position as string) || 0
 
     // Update current speed from setup configuration
     currentSpeed.value = baseSpeed
@@ -300,7 +322,7 @@ const startReading = async () => {
     }
 
     // Get last reading position if available
-    const lastPosition = progressManager.getLastPosition(documentId) || 0
+    const lastPosition = resumeFromSummary ? resumePosition : (progressManager.getLastPosition(documentId) || 0)
 
     // Setup callbacks before starting
     setupReadingCallbacks()
@@ -344,46 +366,12 @@ const startReading = async () => {
     })
     
     // Setup keyboard navigation with accessibility service
-    accessibilityService.setupKeyboardNavigation({
-      onPauseResume: () => {
-        const rsvpEngine = readingSession.value.getRSVPEngine()
-        if (rsvpEngine.isPaused()) {
-          rsvpEngine.resumeReading()
-        } else {
-          rsvpEngine.pauseReading()
-        }
-      },
-      onJumpBack: () => {
-        const rsvpEngine = readingSession.value.getRSVPEngine()
-        const currentPos = rsvpEngine.getCurrentPosition()
-        rsvpEngine.jumpToPosition(Math.max(0, currentPos - 10)) // Jump back 10 words
-      },
-      onJumpForward: () => {
-        const rsvpEngine = readingSession.value.getRSVPEngine()
-        const currentPos = rsvpEngine.getCurrentPosition()
-        rsvpEngine.jumpToPosition(currentPos + 5) // Jump forward 5 words
-      },
-      onSpeedUp: () => {
-        const rsvpEngine = readingSession.value.getRSVPEngine()
-        const newSpeed = Math.min(600, rsvpEngine.getCurrentSpeed() + 25)
-        rsvpEngine.setSpeed(newSpeed)
-        currentSpeed.value = newSpeed
-        accessibilityService.announceStateChange('speed_changed', { speed: newSpeed })
-      },
-      onSpeedDown: () => {
-        const rsvpEngine = readingSession.value.getRSVPEngine()
-        const newSpeed = Math.max(100, rsvpEngine.getCurrentSpeed() - 25)
-        rsvpEngine.setSpeed(newSpeed)
-        currentSpeed.value = newSpeed
-        accessibilityService.announceStateChange('speed_changed', { speed: newSpeed })
-      },
-      onExit: () => {
-        exitReading()
-      },
-      onHelp: () => {
-        // Help is handled by the accessibility service
-      }
-    })
+    // Note: We don't use accessibilityService.setupKeyboardNavigation here
+    // because the KeyboardController already handles all keyboard events
+    // We just need to ensure accessibility announcements work
+    
+    // The keyboard controller is already bound by the reading session
+    // and will handle all keyboard events properly
     
   } catch (error) {
     console.error('Error starting reading session:', error)
@@ -394,7 +382,7 @@ const startReading = async () => {
 }
 
 // Watch for reading state changes
-watch(() => readingSession.value.isPaused(), async (paused) => {
+watch(() => readingSession.value.getRSVPEngine().isPaused(), async (paused) => {
   isPaused.value = paused
   isReading.value = !paused && readingSession.value.isActive()
   
@@ -416,11 +404,46 @@ watch(() => readingSession.value.isPaused(), async (paused) => {
     await nextTick()
     readingContainer.value?.focus()
   }
-})
+}, { immediate: true })
 
 // Lifecycle hooks
 onMounted(() => {
   startReading()
+  
+  // Set up state synchronization polling to ensure UI stays in sync
+  const stateSync = setInterval(() => {
+    if (readingSession.value && readingSession.value.isActive()) {
+      const enginePaused = readingSession.value.getRSVPEngine().isPaused()
+      const engineReading = readingSession.value.getRSVPEngine().isReading()
+      
+      // Update local state if it's out of sync
+      if (isPaused.value !== enginePaused) {
+        isPaused.value = enginePaused
+      }
+      if (isReading.value !== engineReading) {
+        isReading.value = engineReading
+      }
+    }
+  }, 100) // Check every 100ms
+  
+  // Listen for keyboard-triggered events
+  const handleExitRequest = () => {
+    exitReading()
+  }
+  
+  const handleHelpRequest = () => {
+    accessibilityService.announceKeyboardShortcuts()
+  }
+  
+  window.addEventListener('reading-exit-requested', handleExitRequest)
+  window.addEventListener('reading-help-requested', handleHelpRequest)
+  
+  // Clean up polling and event listeners on unmount
+  onUnmounted(() => {
+    clearInterval(stateSync)
+    window.removeEventListener('reading-exit-requested', handleExitRequest)
+    window.removeEventListener('reading-help-requested', handleHelpRequest)
+  })
 })
 
 onUnmounted(() => {
@@ -428,8 +451,9 @@ onUnmounted(() => {
     readingSession.value.stopSession()
   }
   
-  // Clean up accessibility service
-  accessibilityService.removeKeyboardNavigation()
+  // Clean up accessibility service - but don't call removeKeyboardNavigation 
+  // since we're not using it for keyboard handling
+  // accessibilityService.removeKeyboardNavigation()
 })
 </script>
 

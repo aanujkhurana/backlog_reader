@@ -67,7 +67,10 @@ export class KeyboardControllerService implements KeyboardController {
    */
   private handleKeyboardEvent(event: KeyboardEvent): void {
     // Only handle events when RSVP engine has an active session
-    if (!this.rsvpEngine.isReading() && !this.rsvpEngine.isPaused()) {
+    // Allow spacebar to work even when paused to resume reading
+    const hasActiveSession = this.rsvpEngine.isReading() || this.rsvpEngine.isPaused()
+    
+    if (!hasActiveSession) {
       return
     }
 
@@ -122,6 +125,18 @@ export class KeyboardControllerService implements KeyboardController {
           payload: -this.config.speedIncrement
         }
 
+      case 'Escape':
+        // Additional: Escape key to exit reading
+        return {
+          type: 'exit'
+        }
+
+      case 'F1':
+        // Additional: F1 for help
+        return {
+          type: 'help'
+        }
+
       default:
         return null
     }
@@ -162,6 +177,16 @@ export class KeyboardControllerService implements KeyboardController {
             const newPosition = currentPosition + action.payload
             this.rsvpEngine.jumpToPosition(newPosition)
           }
+          break
+
+        case 'exit':
+          // Trigger exit through a custom event that the UI can listen to
+          window.dispatchEvent(new CustomEvent('reading-exit-requested'))
+          break
+
+        case 'help':
+          // Trigger help through a custom event that the UI can listen to
+          window.dispatchEvent(new CustomEvent('reading-help-requested'))
           break
 
         default:

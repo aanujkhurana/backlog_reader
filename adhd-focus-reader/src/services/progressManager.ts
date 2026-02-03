@@ -121,8 +121,8 @@ export class ProgressManagerService implements ProgressManager {
       .sort((a, b) => {
         const aProgress = this.data.progress[a.id]
         const bProgress = this.data.progress[b.id]
-        const aDate = aProgress?.lastUpdated ? new Date(aProgress.lastUpdated) : a.uploadedAt
-        const bDate = bProgress?.lastUpdated ? new Date(bProgress.lastUpdated) : b.uploadedAt
+        const aDate = aProgress?.lastUpdated ? new Date(aProgress.lastUpdated) : new Date(a.uploadedAt)
+        const bDate = bProgress?.lastUpdated ? new Date(bProgress.lastUpdated) : new Date(b.uploadedAt)
         return bDate.getTime() - aDate.getTime()
       })
       .slice(0, 10) // Limit to 10 most recent

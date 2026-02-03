@@ -16,7 +16,7 @@ export interface KeyboardEvent {
 }
 
 export interface ControlAction {
-  type: 'pause' | 'resume' | 'speed-up' | 'speed-down' | 'jump-back' | 'jump-forward'
+  type: 'pause' | 'resume' | 'speed-up' | 'speed-down' | 'jump-back' | 'jump-forward' | 'exit' | 'help'
   payload?: number
 }
 

@@ -27,6 +27,7 @@ export class RSVPEngineService implements RSVPEngine {
     onWordDisplay?: (display: WordDisplay) => void
     onPositionChange?: (position: number, totalWords: number) => void
     onSessionEnd?: () => void
+    onSectionComplete?: (sectionIndex: number, position: number) => void
   } = {}
 
   constructor(config?: Partial<RSVPConfig>) {
@@ -334,6 +335,7 @@ export class RSVPEngineService implements RSVPEngine {
     onWordDisplay?: (display: WordDisplay) => void
     onPositionChange?: (position: number, totalWords: number) => void
     onSessionEnd?: () => void
+    onSectionComplete?: (sectionIndex: number, position: number) => void
   }): void {
     this.callbacks = callbacks
   }
@@ -540,7 +542,11 @@ export class RSVPEngineService implements RSVPEngine {
   private advanceToNextWord(): void {
     if (!this.currentSession) return
 
+    const previousPosition = this.currentSession.currentPosition
     this.currentSession.currentPosition++
+    
+    // Check if we've completed a section
+    this.checkForSectionCompletion(previousPosition, this.currentSession.currentPosition)
   }
 
   /**
@@ -604,6 +610,34 @@ export class RSVPEngineService implements RSVPEngine {
       this.currentSession!.currentPosition >= section.startWordIndex &&
       this.currentSession!.currentPosition <= section.endWordIndex
     )
+  }
+
+  /**
+   * Check if we've completed a section and trigger summary if enabled
+   */
+  private checkForSectionCompletion(previousPosition: number, currentPosition: number): void {
+    if (!this.documentStructure || !this.currentSession) return
+
+    // Find if we've crossed a section boundary
+    const previousSection = this.documentStructure.sections.find(section =>
+      previousPosition >= section.startWordIndex && previousPosition <= section.endWordIndex
+    )
+    
+    const currentSection = this.documentStructure.sections.find(section =>
+      currentPosition >= section.startWordIndex && currentPosition <= section.endWordIndex
+    )
+
+    // If we've moved from one section to another, the previous section is complete
+    if (previousSection && currentSection && previousSection !== currentSection) {
+      const sectionIndex = this.documentStructure.sections.indexOf(previousSection)
+      this.callbacks.onSectionComplete?.(sectionIndex, currentPosition)
+    }
+    
+    // Also check if we've just finished the last section
+    if (previousSection && !currentSection && currentPosition >= this.documentStructure.totalWords) {
+      const sectionIndex = this.documentStructure.sections.indexOf(previousSection)
+      this.callbacks.onSectionComplete?.(sectionIndex, currentPosition)
+    }
   }
 
   /**

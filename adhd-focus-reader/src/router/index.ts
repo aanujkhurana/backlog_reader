@@ -20,6 +20,11 @@ const router = createRouter({
       component: () => import('../views/ReadingView.vue'),
     },
     {
+      path: '/summary/:documentId',
+      name: 'summary',
+      component: () => import('../views/SummaryView.vue'),
+    },
+    {
       path: '/completion/:documentId',
       name: 'completion',
       component: () => import('../views/CompletionView.vue'),

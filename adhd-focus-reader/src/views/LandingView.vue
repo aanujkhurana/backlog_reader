@@ -58,7 +58,7 @@
       <!-- Paste Text Button -->
       <div class="paste-section">
         <button 
-          @click="showPasteModal = true" 
+          @click="handlePasteButtonClick" 
           class="paste-button"
           :disabled="isProcessing"
         >
@@ -96,11 +96,11 @@
     </div>
 
     <!-- Paste Text Modal -->
-    <div v-if="showPasteModal" class="modal-overlay" @click="closePasteModal">
+    <div v-if="showPasteModal" class="modal-overlay" @click="handleOverlayClick" @keydown.esc="closePasteModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
           <h2>Paste Your Text</h2>
-          <button @click="closePasteModal" class="close-button">×</button>
+          <button @click="closePasteModal" class="close-button" aria-label="Close modal">×</button>
         </div>
         <div class="modal-body">
           <input
@@ -108,6 +108,7 @@
             type="text"
             placeholder="Document title (optional)"
             class="title-input"
+            maxlength="100"
           >
           <textarea
             v-model="pasteText"
@@ -116,7 +117,11 @@
             rows="15"
             @keydown.ctrl.enter="processPastedText"
             @keydown.meta.enter="processPastedText"
+            ref="pasteTextarea"
           ></textarea>
+          <div class="character-count" v-if="pasteText.length > 0">
+            {{ pasteText.length.toLocaleString() }} characters
+          </div>
           <div class="modal-actions">
             <button 
               @click="processPastedText" 
@@ -139,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { documentProcessor, progressManager } from '../services'
 import type { DocumentSummary } from '../types'
@@ -159,6 +164,7 @@ const mostRecentUnfinished = ref<DocumentSummary | null>(null)
 // Refs
 const fileInput = ref<HTMLInputElement>()
 const continueButton = ref<HTMLElement>()
+const pasteTextarea = ref<HTMLTextAreaElement>()
 
 // Computed
 const hasUnfinishedDocument = computed(() => !!mostRecentUnfinished.value)
@@ -174,7 +180,27 @@ onMounted(() => {
       continueButton.value?.focus()
     }
   }, 100)
+  
+  // Add global keyboard event listener
+  document.addEventListener('keydown', handleGlobalKeydown)
 })
+
+onUnmounted(() => {
+  // Clean up event listener
+  document.removeEventListener('keydown', handleGlobalKeydown)
+  
+  // Restore body scroll in case component unmounts while modal is open
+  document.body.style.overflow = ''
+})
+
+// Global keyboard event handler
+function handleGlobalKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape' && showPasteModal.value) {
+    event.preventDefault()
+    event.stopPropagation()
+    closePasteModal()
+  }
+}
 
 function loadRecentDocuments() {
   recentDocuments.value = progressManager.getRecentDocuments()
@@ -276,11 +302,44 @@ async function processFile(file: File) {
 }
 
 // Paste text handlers
+function handlePasteButtonClick() {
+  openPasteModal()
+}
+
+function openPasteModal() {
+  console.log('Opening paste modal...')
+  showPasteModal.value = true
+  errorMessage.value = ''
+  
+  // Prevent body scroll when modal is open
+  document.body.style.overflow = 'hidden'
+  
+  // Focus the textarea after the modal opens
+  nextTick(() => {
+    if (pasteTextarea.value) {
+      pasteTextarea.value.focus()
+    }
+  })
+}
+
+function handleOverlayClick(event: MouseEvent) {
+  // Only close if clicking directly on the overlay, not on child elements
+  if (event.target === event.currentTarget) {
+    event.preventDefault()
+    event.stopPropagation()
+    closePasteModal()
+  }
+}
+
 function closePasteModal() {
+  console.log('Closing paste modal...')
   showPasteModal.value = false
   pasteText.value = ''
   pasteTitle.value = ''
   errorMessage.value = ''
+  
+  // Restore body scroll
+  document.body.style.overflow = ''
 }
 
 async function processPastedText() {
@@ -609,12 +668,18 @@ function resumeDocument(doc: DocumentSummary) {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 9999;
   padding: 2rem;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px); /* Safari support */
+  /* Prevent scrolling on body when modal is open */
+  overflow: hidden;
 }
 
 .modal-content {
@@ -627,6 +692,29 @@ function resumeDocument(doc: DocumentSummary) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+  animation: modalFadeIn 0.2s ease-out;
+  /* Ensure modal is always on top */
+  position: relative;
+  z-index: 10000;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Fallback for browsers that don't support backdrop-filter */
+@supports not (backdrop-filter: blur(2px)) {
+  .modal-overlay {
+    background: rgba(0, 0, 0, 0.9);
+  }
 }
 
 .modal-header {
@@ -655,10 +743,13 @@ function resumeDocument(doc: DocumentSummary) {
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s ease;
 }
 
 .close-button:hover {
   color: #fff;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .modal-body {
@@ -677,6 +768,12 @@ function resumeDocument(doc: DocumentSummary) {
   padding: 0.75rem;
   border-radius: 6px;
   font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.title-input:focus {
+  outline: none;
+  border-color: #666;
 }
 
 .title-input::placeholder {
@@ -694,10 +791,22 @@ function resumeDocument(doc: DocumentSummary) {
   resize: vertical;
   flex: 1;
   min-height: 300px;
+  transition: border-color 0.2s ease;
+}
+
+.paste-textarea:focus {
+  outline: none;
+  border-color: #666;
 }
 
 .paste-textarea::placeholder {
   color: #666;
+}
+
+.character-count {
+  font-size: 0.85rem;
+  color: #aaa;
+  text-align: right;
 }
 
 .modal-actions {
@@ -714,10 +823,12 @@ function resumeDocument(doc: DocumentSummary) {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: 1rem;
 }
 
 .process-button:hover:not(:disabled) {
   background: #444;
+  border-color: #666;
 }
 
 .process-button:disabled {
@@ -733,6 +844,7 @@ function resumeDocument(doc: DocumentSummary) {
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
+  font-size: 1rem;
 }
 
 .cancel-button:hover {

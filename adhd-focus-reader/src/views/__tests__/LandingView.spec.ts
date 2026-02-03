@@ -73,7 +73,11 @@ describe('LandingView', () => {
 
     const pasteButton = wrapper.find('.paste-button')
     await pasteButton.trigger('click')
+    
+    // Wait for Vue to update the DOM
+    await wrapper.vm.$nextTick()
 
+    // Check if modal is rendered in the component
     expect(wrapper.find('.modal-overlay').exists()).toBe(true)
     expect(wrapper.find('.modal-header h2').text()).toBe('Paste Your Text')
   })
